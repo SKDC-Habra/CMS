@@ -1,0 +1,4 @@
+Patient	(Any)	1234	/patient
+Admin	8888888888	admin	/admin/dashboard
+Doctor	7777777777	doctor	/doctor
+Super Admin	9999999999	super	/admin/super

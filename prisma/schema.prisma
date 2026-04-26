@@ -1,0 +1,231 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  PATIENT
+  ADMIN
+  DOCTOR
+  SUPER_ADMIN
+}
+
+enum SessionType {
+  MORNING
+  EVENING
+}
+
+enum SessionStatus {
+  OPEN
+  CLOSED
+  HOUSE_FULL
+}
+
+enum TokenStatus {
+  LOCKED
+  BOOKED
+  IN_CONSULTATION
+  COMPLETED
+  SKIPPED
+  NO_SHOW
+  CANCELLED
+  EXPIRED
+}
+
+enum PaymentMode {
+  CASH
+  UPI
+  CARD
+  ONLINE
+  WAIVED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+  WAIVED
+}
+
+enum QueueAction {
+  TOKEN_LOCKED
+  TOKEN_BOOKED
+  CONSULTATION_STARTED
+  TOKEN_COMPLETED
+  TOKEN_SKIPPED
+  TOKEN_NO_SHOW
+  TOKEN_CANCELLED
+  TOKEN_EXPIRED
+  EMERGENCY_CREATED
+  SESSION_OPENED
+  SESSION_CLOSED
+  SESSION_HOUSE_FULL
+}
+
+model User {
+  id        String    @id @default(cuid())
+  phone     String    @unique
+  name      String?
+  role      Role      @default(PATIENT)
+  lastVisit DateTime?
+
+  parentId   String?
+  parent     User?    @relation("Family", fields: [parentId], references: [id])
+  dependents User[]   @relation("Family")
+
+  doctorProfile Doctor?
+  tokens        Token[]      @relation("PatientTokens")
+  queueEvents   QueueEvent[] @relation("QueueActor")
+  otpChallenges OtpChallenge[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Doctor {
+  id             String  @id @default(cuid())
+  userId         String  @unique
+  user           User    @relation(fields: [userId], references: [id])
+  name           String
+  qualification  String
+  specialization String
+  fee            Int     @default(500)
+  commission     Int     @default(0)
+  active         Boolean @default(true)
+
+  schedules DoctorSchedule[]
+  sessions  Session[]
+  tokens    Token[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model DoctorSchedule {
+  id           String      @id @default(cuid())
+  doctorId     String
+  doctor       Doctor      @relation(fields: [doctorId], references: [id])
+  dayOfWeek    Int?
+  specificDate DateTime?   @db.Date
+  type         SessionType
+  startTime    String
+  endTime      String
+  capacity     Int         @default(20)
+  active       Boolean     @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Session {
+  id        String        @id @default(cuid())
+  doctorId  String
+  doctor    Doctor        @relation(fields: [doctorId], references: [id])
+  date      DateTime      @db.Date
+  type      SessionType
+  status    SessionStatus @default(OPEN)
+  capacity  Int           @default(20)
+  startTime String?
+  endTime   String?
+
+  tokens      Token[]
+  queueEvents QueueEvent[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([doctorId, date, type])
+}
+
+model AppointmentType {
+  id         String  @id @default(cuid())
+  code       String  @unique
+  label      String
+  fee        Int
+  isFollowUp Boolean @default(false)
+  active     Boolean @default(true)
+
+  tokens Token[]
+}
+
+model Token {
+  id                String          @id @default(cuid())
+  number            Int
+  status            TokenStatus     @default(LOCKED)
+  expiresAt         DateTime?
+  notes             String?
+  patientId         String
+  patient           User            @relation("PatientTokens", fields: [patientId], references: [id])
+  doctorId          String
+  doctor            Doctor          @relation(fields: [doctorId], references: [id])
+  sessionId         String
+  session           Session         @relation(fields: [sessionId], references: [id])
+  appointmentTypeId String
+  appointmentType   AppointmentType @relation(fields: [appointmentTypeId], references: [id])
+  payment           Payment?
+  queueEvents       QueueEvent[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([sessionId, number])
+}
+
+model Payment {
+  id        String        @id @default(cuid())
+  tokenId   String        @unique
+  token     Token         @relation(fields: [tokenId], references: [id])
+  amount    Int
+  mode      PaymentMode
+  status    PaymentStatus @default(PENDING)
+  reference String?
+  paidAt    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ClinicSettings {
+  id                    String @id @default("default")
+  clinicName            String @default("Smart Clinic")
+  address               String @default("Plot 42, Sector 18, Smart City")
+  phone                 String @default("+91 9988776655")
+  email                 String @default("admin@smartclinic.com")
+  tokenLockMinutes      Int    @default(10)
+  followUpValidityDays  Int    @default(15)
+  standardConsultFee    Int    @default(500)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model QueueEvent {
+  id        String      @id @default(cuid())
+  action    QueueAction
+  note      String?
+  tokenId   String?
+  token     Token?      @relation(fields: [tokenId], references: [id])
+  sessionId String?
+  session   Session?    @relation(fields: [sessionId], references: [id])
+  actorId   String?
+  actor     User?       @relation("QueueActor", fields: [actorId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+model OtpChallenge {
+  id         String    @id @default(cuid())
+  phone      String
+  code       String
+  consumedAt DateTime?
+  expiresAt  DateTime
+  userId     String?
+  user       User?     @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
+}
