@@ -5,7 +5,6 @@ import { login, safeHomeForRole } from '@/lib/auth'
 import { sendSMS } from '@/lib/notifications'
 import { Role } from '@prisma/client'
 import { addMinutes } from 'date-fns'
-import { redirect } from 'next/navigation'
 
 function normalizePhone(phone: string) {
     return phone.replace(/\D/g, '').slice(-10)
@@ -72,5 +71,5 @@ export async function verifyOTPAndLogin(rawPhone: string, code: string) {
     })
 
     await login(challenge.user.id, challenge.user.role)
-    redirect(safeHomeForRole(challenge.user.role))
+    return { success: true, redirectTo: safeHomeForRole(challenge.user.role) }
 }

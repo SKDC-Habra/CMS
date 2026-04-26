@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -9,6 +10,7 @@ import { requestOTP, verifyOTPAndLogin } from '@/app/login/actions'
 import { Loader2 } from 'lucide-react'
 
 export function LoginForm() {
+    const router = useRouter()
     const [step, setStep] = useState<'PHONE' | 'OTP'>('PHONE')
     const [phone, setPhone] = useState('')
     const [otp, setOtp] = useState('')
@@ -23,13 +25,18 @@ export function LoginForm() {
         const formData = new FormData()
         formData.append('phone', phone)
 
-        const result = await requestOTP(formData)
-        setIsLoading(false)
+        try {
+            const result = await requestOTP(formData)
 
-        if (result.success) {
-            setStep('OTP')
-        } else {
-            setError(result.message || 'Failed to send OTP')
+            if (result.success) {
+                setStep('OTP')
+            } else {
+                setError(result.message || 'Failed to send OTP')
+            }
+        } catch {
+            setError('Failed to send OTP')
+        } finally {
+            setIsLoading(false)
         }
     }
 
@@ -38,10 +45,19 @@ export function LoginForm() {
         setIsLoading(true)
         setError('')
 
-        const result = await verifyOTPAndLogin(phone, otp)
-        // If successful, it redirects. If returns, it failed.
-        if (result && !result.success) {
+        try {
+            const result = await verifyOTPAndLogin(phone, otp)
+
+            if (result.success && result.redirectTo) {
+                router.replace(result.redirectTo)
+                router.refresh()
+                return
+            }
+
             setError(result.message || 'Verification failed')
+        } catch {
+            setError('Verification failed')
+        } finally {
             setIsLoading(false)
         }
     }
